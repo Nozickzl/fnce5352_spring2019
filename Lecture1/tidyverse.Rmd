@@ -61,7 +61,7 @@ Why tidyverse?
 > A modern reimagining of data frames.
 
 ```{r}
-library(tidyverse)
+library(tidyverse, quietly = T)
 ```
 
 ```{r}
@@ -205,10 +205,19 @@ t3 %>% mutate(tot = ifelse(is.na(num_t1),0,num_t1) + ifelse(is.na(num_t2),0,num_
 Super-secret pro-tip: You can `group_by` %&gt;% `mutate` to accomplish a summarize + join
 
 ```{r}
-data_frame(group = sample(letters[1:3], 10, replace = TRUE),
-           value = rnorm(10)) %>%
+
+data <- data_frame(group = sample(letters[1:3], 10, replace = TRUE),
+           value = rnorm(10))
+
+data %>%
   group_by(group) %>%
   mutate(group_average = mean(value))
+
+#the alternative is a 2-step process
+
+averages <- data %>% group_by(group) %>% summarize(group_average = mean(value))
+data %>% inner_join(averages)
+
 ```
 
 
@@ -217,7 +226,37 @@ data_frame(group = sample(letters[1:3], 10, replace = TRUE),
 
 Latest generation of `reshape`. `gather` to make wide table long, `spread` to make long tables wide.
 
+We'll use a Tuberculosis dataset from the World Health Organization.  This dataset used to be available in the base install of R, but we'll have to get it from an external source.  Fortunately, the tidyverse gives us the tools to do that easily.
+
+This data is freely availble at https://www.who.int/tb/country/data/download/en/ ,and a data dictionary can be found at https://extranet.who.int/tme/generateCSV.asp?ds=dictionary
+
 ```{r}
+
+who <- read_csv('https://extranet.who.int/tme/generateCSV.asp?ds=notifications')
+
+#let's try that again, but give the proper column types
+
+col_types <- cols(
+  .default = col_double(),
+  country = col_character(),
+  iso2 = col_character(),
+  iso3 = col_character(),
+  iso_numeric = col_character(),
+  g_whoregion = col_character(),
+  new_sn_sexunk04 = col_double(),
+  new_sn_sexunk514 = col_double(),
+  new_sn_sexunk014 = col_double(),
+  new_sn_sexunk15plus = col_double(),
+  new_ep_m04 = col_double(),
+  new_ep_sexunkageunk = col_double(),
+  rdxsurvey_newinc = col_double(),
+  rdxsurvey_newinc_rdx = col_double(),
+  hiv_ipt_reg_all = col_double(),
+  hiv_tbdetect = col_double()
+)
+
+who <- read_csv('https://extranet.who.int/tme/generateCSV.asp?ds=notifications', col_types = col_types)
+
 who  # Tuberculosis data from the WHO
 
 ```
@@ -225,7 +264,12 @@ who  # Tuberculosis data from the WHO
  
 ```{r}
 who %>%
-  gather(group, cases, -country, -iso2, -iso3, -year)
+  gather(group, cases, -country, -iso2, -iso3, -year, -iso_numeric, -g_whoregion)
+
+who %>%
+  gather(group, cases, -country, -iso2, -iso3, -year, -iso_numeric, -g_whoregion) %>% 
+  filter(!is.na(cases))
+
 ```
 
 
@@ -239,7 +283,7 @@ Note that the pipe and consistent API make it easy to combine functions from dif
 
 ```{r}
 who %>%
-  select(-iso2, -iso3) %>%
+  select(-iso2, -iso3, -iso_numeric, -g_whoregion) %>%
   gather(group, cases, -country, -year) %>%
   count(country, year, wt = cases) %>%
   ggplot(aes(x = year, y = n, group = country)) +
@@ -247,7 +291,7 @@ who %>%
 
 who.summary <- who %>%
   select(-iso2) %>%
-  gather(group, cases, -country, -iso3, -year) %>%
+  gather(group, cases, -country, -iso3,-iso_numeric, -g_whoregion, -year) %>%
   filter(!is.na(cases)) %>%
   count(year, wt = cases)
 
