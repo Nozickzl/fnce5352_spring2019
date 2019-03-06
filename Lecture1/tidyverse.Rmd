@@ -87,7 +87,7 @@ Tibbles have some convenient and consistent defaults that are different from bas
 
 ```{r}
 dfs = list(
-  df = data.frame(abc = letters[1:3], xyz = letters[24:26]),
+  df = data.frame(abc = letters[1:3], xyz = letters[24:26], stringsAsFactors = FALSE),
   tbl = data_frame(abc = letters[1:3], xyz = letters[24:26])
 )
 sapply(dfs, function(d) class(d$abc))
@@ -112,8 +112,11 @@ Note that tidyverse import functions (e.g. `readr::read_csv`) default to tibbles
 #### List-columns!
 
 ```{r}
-tibble(ints = 1:5,
+a <- tibble(ints = 1:5,
        powers = lapply(1:5, function(x) x^(1:x)))
+
+a[[5,2]]
+a
 ```
 
 
@@ -151,14 +154,16 @@ movies %>%
 ```
 
 ```{r}
-filter(movies, length > 360) %>%
+movies %>%
+  filter(length > 360) %>%
   select(title, rating, votes)
 ```
 
 ```{r}
-filter(movies, Animation == 1, votes > 1000) %>%
+movies %>%
+  filter(Animation == 1, votes > 1000) %>%
   select(title, rating) %>%
-  arrange(desc(rating))
+  arrange(desc(rating)) -> a
 ```
 
 
@@ -171,7 +176,10 @@ movies %>%
   group_by(year, mpaa) %>%
   summarize(avg_budget = mean(budget, na.rm = TRUE),
             avg_rating = mean(rating, na.rm = TRUE)) %>%
-  arrange(desc(year), mpaa)
+  arrange(desc(year), mpaa) -> b
+
+
+cbind
 ```
 
  
@@ -198,6 +206,8 @@ t1 = data_frame(alpha = letters[1:6], num = 1:6)
 t2 = data_frame(alpha = letters[4:10], num = 4:10)
 t3 <- full_join(t1, t2, by = "alpha", suffix = c("_t1", "_t2"))
 
+t3
+
 t3 %>% mutate(tot = ifelse(is.na(num_t1),0,num_t1) + ifelse(is.na(num_t2),0,num_t2))
 ```
 
@@ -208,6 +218,7 @@ Super-secret pro-tip: You can `group_by` %&gt;% `mutate` to accomplish a summari
 
 data <- data_frame(group = sample(letters[1:3], 10, replace = TRUE),
            value = rnorm(10))
+data
 
 data %>%
   group_by(group) %>%
@@ -256,9 +267,10 @@ col_types <- cols(
 )
 
 who <- read_csv('https://extranet.who.int/tme/generateCSV.asp?ds=notifications', col_types = col_types)
-who <- who[,c(1:3, 6, 25:26, 28:33, 35:36, 38:43, 45:46, 48:53, 56:57, 59:64, 71:72, 74:79, 82:83, 85:90)]
+who <- who[,c(1:3, 6, 27:33, 37:43, 47:53, 58:64, 73:79, 84:90)]
 
-who  # Tuberculosis data from the WHO
+str(who)# Tuberculosis data from the WHO
+
 
 ```
 
@@ -288,13 +300,15 @@ who %>%
   gather(group, cases, -country, -year) %>%
   count(country, year, wt = cases) %>%
   ggplot(aes(x = year, y = n, group = country)) +
-  geom_line(size = .2) 
+  geom_line(size = .2) + scale_y_log10()
 
 who.summary <- who %>%
   select(-iso2) %>%
   gather(group, cases, -country, -iso3, -year) %>%
   filter(!is.na(cases)) %>%
   count(year, wt = cases)
+
+who.summary
 
 who.summary %>%
   ggplot(aes(x=year, y=n)) + geom_line()
@@ -312,6 +326,7 @@ For reading flat files. Faster than base with smarter defaults.
 bigdf = data_frame(int = 1:1e6, 
                    squares = int^2, 
                    letters = sample(letters, 1e6, replace = TRUE))
+bigdf
 ```
 
 ```{r}
@@ -349,7 +364,10 @@ read_csv("readr-write.csv", n_max = 3)
 
 ```{r}
 d = data_frame(x = runif(20, 0, 10), 
-               y = 2 * x + rnorm(10))
+               y = 2 * x + rnorm(20))
+d
+
+
 qplot(x, y, data = d)
 ```
 
@@ -359,7 +377,9 @@ qplot(x, y, data = d)
 
 ```{r}
 library(broom)  # Not attached with tidyverse
-model = lm(y ~ x, d)
+model <- lm(y ~ x, d)
+summary(model)
+
 tidy(model)
 ```
 
@@ -566,6 +586,7 @@ str_replace_all(fishes, "fish", "banana")
  
 
 ```{r}
+fishes
 str_extract(fishes, "[a-z]\\s")
 ```
 
@@ -583,8 +604,7 @@ who %>%
          age = str_extract(group, "[0-9]+"),
          age = ifelse(str_length(age) > 2,
                       str_c(str_sub(age, 1, -3), str_sub(age, -2, -1), sep = "-"),
-                      ifelse(age=='04', '0-4', str_c(age, "+"))),
-         age = ordered(age, levels=c('0-4', '5-14', '15-24', '25-34', '35-44', '45-54', '55-64', '65+'))) %>%
+                      str_c(age, "+"))) %>%
   group_by(year, gender, age, method) %>%
   summarize(total_cases = sum(cases, na.rm = TRUE)) %>%
   ggplot(aes(x = year, y = total_cases, linetype = gender)) +
